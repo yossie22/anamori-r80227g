@@ -273,7 +273,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
 
 <div id="centerCross"></div>
 
-<img id="mapButton" src="btn_map.png" alt="" onclick="goToMap()">
+<img id="mapButton" src="Map戻り-removebg-preview.png" alt="" onclick="goToMap()">
 <div id="counter">1</div>
 
 <div id="volumeContainer">
@@ -281,10 +281,10 @@ html, body { width: 100%; height: 100%; overflow: hidden; }
   <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="0.5">
 </div>
 
-<img id="arrowUp" class="arrow-nav" src="btn_up.png" alt="">
-<img id="arrowDown" class="arrow-nav" src="btn_down.png" alt="">
-<img id="arrowLeft" class="arrow-nav" src="btn_left.png" alt="">
-<img id="arrowRight" class="arrow-nav" src="btn_right.png" alt="">
+<img id="arrowUp" class="arrow-nav" src="上-removebg-preview.png" alt="">
+<img id="arrowDown" class="arrow-nav" src="下-removebg-preview.png" alt="">
+<img id="arrowLeft" class="arrow-nav" src="左-removebg-preview.png" alt="">
+<img id="arrowRight" class="arrow-nav" src="右-removebg-preview.png" alt="">
 
 <div id="textHotspot">
   <p id="textContent"></p>
@@ -324,6 +324,7 @@ var scenesData = {};
 var currentScene = null;
 var currentView = null;
 var currentSceneObj = null;
+var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 var currentAudio = null;
 var currentVolume = 0.5;
 var audioEnabled = false;
@@ -653,27 +654,6 @@ volumeSlider.addEventListener('\x69\x6e\x70\x75\x74', function() {
  currentVolume = this.value;
  if (currentAudio) currentAudio.volume = currentVolume;
 });
-var bgmPool = {};
-var bgmFadeTimers = {};
-function getBgmAudio(file) {
- if (!bgmPool[file]) {
- var a = new Audio(file);
- a.loop = true;
- a._posFile = file;
- bgmPool[file] = a;
- }
- return bgmPool[file];
-}
-function stopBgmNow(audio) {
- if (!audio) return;
- var key = audio._posFile;
- if (key && bgmFadeTimers[key]) {
- clearInterval(bgmFadeTimers[key]);
- bgmFadeTimers[key] = null;
- }
- audio.volume = 0;
- audio.pause();
-}
 function playSceneBGM() {
  if (!audioEnabled || !currentSceneObj) return;
  var bgmFile = currentSceneObj.data.bgm ? ('\x73\x6f\x75\x6e\x64\x73\x2f' + currentSceneObj.data.bgm) : null;
@@ -685,60 +665,46 @@ function playSceneBGM() {
  return;
  }
  if (currentAudio && currentAudio._posFile === bgmFile && !currentAudio.paused) return;
- if (currentAudio && currentAudio !== getBgmAudio(bgmFile)) {
- stopBgmNow(currentAudio);
- }
- var newAudio = getBgmAudio(bgmFile);
+ var oldAudio = currentAudio;
+ var newAudio = new Audio(bgmFile);
+ newAudio.loop = true;
+ newAudio._posFile = bgmFile;
  newAudio.volume = 0;
+ newAudio.onerror = function() { currentAudio = null; };
+ try {
+ var track = audioCtx.createMediaElementSource(newAudio);
+ track.connect(audioCtx.destination);
+ } catch(e) {}
  currentAudio = newAudio;
- var playPromise = newAudio.play();
- if (playPromise !== undefined) {
- playPromise.then(function() {
+ newAudio.play().then(function() {
  fadeAudioIn(newAudio, currentVolume, (0x1b4+0x61c));
+ if (oldAudio) fadeAudioOut(oldAudio, (0x270+0x948), null);
  }).catch(function() { currentAudio = null; });
- } else {
- fadeAudioIn(newAudio, currentVolume, (0x138+0x698));
- }
 }
 function fadeAudioOut(audio, duration, callback) {
  if (!audio) { if (callback) callback(); return; }
- var key = audio._posFile;
- if (key && bgmFadeTimers[key]) {
- clearInterval(bgmFadeTimers[key]);
- }
  var startVol = audio.volume;
- if (startVol <= 0) { audio.pause(); if (callback) callback(); return; }
  var steps = (0xf+0x5), stepTime = duration / steps, stepVol = startVol / steps;
  var timer = setInterval(function() {
  if (audio.volume > stepVol) {
  audio.volume = Math.max(0, audio.volume - stepVol);
  } else {
- audio.volume = 0;
- audio.pause();
+ audio.volume = 0; audio.pause();
  clearInterval(timer);
- if (key) bgmFadeTimers[key] = null;
  if (callback) callback();
  }
  }, stepTime);
- if (key) bgmFadeTimers[key] = timer;
 }
 function fadeAudioIn(audio, targetVol, duration) {
- var key = audio._posFile;
- if (key && bgmFadeTimers[key]) {
- clearInterval(bgmFadeTimers[key]);
- }
  audio.volume = 0;
  var steps = (0x6+0xe), stepTime = duration / steps, stepVol = targetVol / steps;
  var timer = setInterval(function() {
  if (audio.volume < targetVol - stepVol) {
  audio.volume = Math.min(targetVol, audio.volume + stepVol);
  } else {
- audio.volume = targetVol;
- clearInterval(timer);
- if (key) bgmFadeTimers[key] = null;
+ audio.volume = targetVol; clearInterval(timer);
  }
  }, stepTime);
- if (key) bgmFadeTimers[key] = timer;
 }
 function playPositionSound(position) {
  playSceneBGM();
@@ -757,6 +723,7 @@ function showVolumeAndPlayBGM() {
  }
  audioEnabled = true;
  bgmEnabled = true;
+ if (audioCtx.state === '\x73\x75\x73\x70\x65\x6e\x64\x65\x64') audioCtx.resume();
  var vc = document.getElementById('\x76\x6f\x6c\x75\x6d\x65\x43\x6f\x6e\x74\x61\x69\x6e\x65\x72');
  vc.classList.add('\x76\x69\x73\x69\x62\x6c\x65');
  if (volumeHideTimer) clearTimeout(volumeHideTimer);
@@ -782,7 +749,7 @@ function playSceneVideos() {
  });
 }
 function tryEnableAudio() {
- audioEnabled = true;
+ if (audioCtx.state === '\x73\x75\x73\x70\x65\x6e\x64\x65\x64') audioCtx.resume();
 }
 document.addEventListener('\x63\x6c\x69\x63\x6b', tryEnableAudio, { once: true });
 document.addEventListener('\x74\x6f\x75\x63\x68\x73\x74\x61\x72\x74', tryEnableAudio, { once: true });
