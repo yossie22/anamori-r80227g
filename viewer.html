@@ -324,7 +324,6 @@ var scenesData = {};
 var currentScene = null;
 var currentView = null;
 var currentSceneObj = null;
-var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 var currentAudio = null;
 var currentVolume = 0.5;
 var audioEnabled = false;
@@ -654,6 +653,16 @@ volumeSlider.addEventListener('\x69\x6e\x70\x75\x74', function() {
  currentVolume = this.value;
  if (currentAudio) currentAudio.volume = currentVolume;
 });
+var bgmPool = {};
+function getBgmAudio(file) {
+ if (!bgmPool[file]) {
+ var a = new Audio(file);
+ a.loop = true;
+ a._posFile = file;
+ bgmPool[file] = a;
+ }
+ return bgmPool[file];
+}
 function playSceneBGM() {
  if (!audioEnabled || !currentSceneObj) return;
  var bgmFile = currentSceneObj.data.bgm ? ('\x73\x6f\x75\x6e\x64\x73\x2f' + currentSceneObj.data.bgm) : null;
@@ -666,25 +675,24 @@ function playSceneBGM() {
  }
  if (currentAudio && currentAudio._posFile === bgmFile && !currentAudio.paused) return;
  var oldAudio = currentAudio;
- var newAudio = new Audio(bgmFile);
- newAudio.loop = true;
- newAudio._posFile = bgmFile;
+ var newAudio = getBgmAudio(bgmFile);
  newAudio.volume = 0;
- newAudio.onerror = function() { currentAudio = null; };
- try {
- var track = audioCtx.createMediaElementSource(newAudio);
- track.connect(audioCtx.destination);
- } catch(e) {}
  currentAudio = newAudio;
- newAudio.play().then(function() {
+ var playPromise = newAudio.play();
+ if (playPromise !== undefined) {
+ playPromise.then(function() {
  fadeAudioIn(newAudio, currentVolume, (0x1b4+0x61c));
- if (oldAudio) fadeAudioOut(oldAudio, (0x270+0x948), null);
+ if (oldAudio && oldAudio !== newAudio) fadeAudioOut(oldAudio, (0x270+0x948), null);
  }).catch(function() { currentAudio = null; });
+ } else {
+ fadeAudioIn(newAudio, currentVolume, (0x3b2+0x41e));
+ if (oldAudio && oldAudio !== newAudio) fadeAudioOut(oldAudio, (0xa92+0x126), null);
+ }
 }
 function fadeAudioOut(audio, duration, callback) {
  if (!audio) { if (callback) callback(); return; }
  var startVol = audio.volume;
- var steps = (0xf+0x5), stepTime = duration / steps, stepVol = startVol / steps;
+ var steps = (0x6+0xe), stepTime = duration / steps, stepVol = startVol / steps;
  var timer = setInterval(function() {
  if (audio.volume > stepVol) {
  audio.volume = Math.max(0, audio.volume - stepVol);
@@ -697,7 +705,7 @@ function fadeAudioOut(audio, duration, callback) {
 }
 function fadeAudioIn(audio, targetVol, duration) {
  audio.volume = 0;
- var steps = (0x6+0xe), stepTime = duration / steps, stepVol = targetVol / steps;
+ var steps = (0x13+0x1), stepTime = duration / steps, stepVol = targetVol / steps;
  var timer = setInterval(function() {
  if (audio.volume < targetVol - stepVol) {
  audio.volume = Math.min(targetVol, audio.volume + stepVol);
@@ -723,13 +731,12 @@ function showVolumeAndPlayBGM() {
  }
  audioEnabled = true;
  bgmEnabled = true;
- if (audioCtx.state === '\x73\x75\x73\x70\x65\x6e\x64\x65\x64') audioCtx.resume();
  var vc = document.getElementById('\x76\x6f\x6c\x75\x6d\x65\x43\x6f\x6e\x74\x61\x69\x6e\x65\x72');
  vc.classList.add('\x76\x69\x73\x69\x62\x6c\x65');
  if (volumeHideTimer) clearTimeout(volumeHideTimer);
  volumeHideTimer = setTimeout(function() {
  vc.classList.remove('\x76\x69\x73\x69\x62\x6c\x65');
- }, (0x1225+0x163));
+ }, (0xad8+0x8b0));
  if (currentSceneObj) playPositionSound(currentSceneObj.data.position);
  playSceneVideos();
  if (window._lightCanvases) {
@@ -749,7 +756,7 @@ function playSceneVideos() {
  });
 }
 function tryEnableAudio() {
- if (audioCtx.state === '\x73\x75\x73\x70\x65\x6e\x64\x65\x64') audioCtx.resume();
+ audioEnabled = true;
 }
 document.addEventListener('\x63\x6c\x69\x63\x6b', tryEnableAudio, { once: true });
 document.addEventListener('\x74\x6f\x75\x63\x68\x73\x74\x61\x72\x74', tryEnableAudio, { once: true });
@@ -772,14 +779,14 @@ counter.addEventListener('\x6d\x6f\x75\x73\x65\x64\x6f\x77\x6e', function(e) {
  counterLongPressTimer = setTimeout(function() {
  counterLongPressed = true;
  showVolumeAndPlayBGM();
- }, (0x15b+0xfd));
+ }, (0x55+0x203));
 });
 counter.addEventListener('\x6d\x6f\x75\x73\x65\x75\x70', function(e) {
  clearTimeout(counterLongPressTimer);
  if (!counterLongPressed) {
  var now = Date.now();
  var timeSinceLastTap = now - counterLastTapTime;
- if (timeSinceLastTap < (0x2b+0x101) && timeSinceLastTap > 0) {
+ if (timeSinceLastTap < (0x10f+0x1d) && timeSinceLastTap > 0) {
  toggleDebugMode();
  counterLastTapTime = 0;
  } else {
@@ -794,7 +801,7 @@ counter.addEventListener('\x74\x6f\x75\x63\x68\x73\x74\x61\x72\x74', function(e)
  counterLongPressTimer = setTimeout(function() {
  counterLongPressed = true;
  showVolumeAndPlayBGM();
- }, (0x21e+0x3a));
+ }, (0x5a+0x1fe));
 }, { passive: false });
 counter.addEventListener('\x74\x6f\x75\x63\x68\x65\x6e\x64', function(e) {
  e.preventDefault();
@@ -802,7 +809,7 @@ counter.addEventListener('\x74\x6f\x75\x63\x68\x65\x6e\x64', function(e) {
  if (!counterLongPressed) {
  var now = Date.now();
  var timeSinceLastTap = now - counterLastTapTime;
- if (timeSinceLastTap < (0x2d+0xff) && timeSinceLastTap > 0) {
+ if (timeSinceLastTap < (0xf1+0x3b) && timeSinceLastTap > 0) {
  toggleDebugMode();
  counterLastTapTime = 0;
  } else {
@@ -832,7 +839,7 @@ function executeMoveByDelta(delta) {
 }
 window.moveForward = function() {
  var yaw = normalizeAngle(currentView.parameters().yaw);
- var isLookingFront = Math.abs(radToDeg(yaw)) <= (0x3d+0x1d);
+ var isLookingFront = Math.abs(radToDeg(yaw)) <= (0x29+0x31);
  var delta;
  if (currentSceneObj.data.direction === '\x69\x6b\x69') {
  delta = isLookingFront ? 1 : -1;
@@ -843,7 +850,7 @@ window.moveForward = function() {
 };
 window.moveBackward = function() {
  var yaw = normalizeAngle(currentView.parameters().yaw);
- var isLookingFront = Math.abs(radToDeg(yaw)) <= (0x29+0x31);
+ var isLookingFront = Math.abs(radToDeg(yaw)) <= (0x34+0x26);
  var delta;
  if (currentSceneObj.data.direction === '\x69\x6b\x69') {
  delta = isLookingFront ? -1 : 1;
@@ -882,12 +889,12 @@ function showUI() {
  if (hideTimer) clearTimeout(hideTimer);
  hideTimer = setTimeout(function() {
  uiElements.forEach(function(el) { if (el) el.classList.remove('\x76\x69\x73\x69\x62\x6c\x65'); });
- }, (0x339+0x497));
+ }, (0x58+0x778));
 }
 document.addEventListener('\x6d\x6f\x75\x73\x65\x6d\x6f\x76\x65', showUI);
 document.addEventListener('\x74\x6f\x75\x63\x68\x73\x74\x61\x72\x74', showUI);
 var autoMoveInterval = null;
-var autoMoveDelay = (0x2c+0x2f4);
+var autoMoveDelay = (0x114+0x20c);
 var autoMoveLongPressTimer = null;
 var autoMoveActive = false;
 function startAutoMove(moveFunction) {
@@ -899,7 +906,7 @@ function startAutoMove(moveFunction) {
  autoMoveLongPressTimer = setTimeout(function() {
  autoMoveActive = true;
  autoMoveInterval = setInterval(moveFunction, autoMoveDelay);
- }, (0x114+0x144));
+ }, (0x23c+0x1c));
 }
 function cancelLongPress() {
  clearTimeout(autoMoveLongPressTimer);
